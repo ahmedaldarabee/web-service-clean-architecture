@@ -110,6 +110,7 @@ namespace WService.Controllers {
             }
         }
 
+        //Why next end-point once i upload the image as png it will stop running the server?
         [HttpPost("UploadImage")]
         public async Task<IActionResult> UpdateImage(IFormFile file){
             try {
@@ -136,6 +137,37 @@ namespace WService.Controllers {
             catch(Exception ex){
                 return StatusCode(500, $"An unexpected error occurred while uploading image. {ex.Message}");
             }
+        }
+
+        [HttpGet("GetImage")]
+        public async Task<IActionResult> GetImage(string fileName){
+            try {
+                var fileLocation = @"C:\Users\ahmed\Desktop\General\Imgs";
+                var filePath = Path.Combine(fileLocation,fileName);
+
+                if (!System.IO.File.Exists(filePath)){
+                    return NotFound($"Opps, this image {fileName} doesn't exist");
+                }
+
+                var image = System.IO.File.OpenRead(filePath);
+                var showImgInfo = GetMimeType(filePath);
+
+                return File(image,showImgInfo);
+
+            }
+            catch (Exception ex){
+                return StatusCode(500, $"An unexpected error occurred while getting image. {ex.Message}");
+
+            }
+        }
+        private string GetMimeType(string filePath){
+            var extension = Path.GetExtension(filePath).ToLowerInvariant();
+            return extension switch {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                _ => "application/octet-stream",
+            };
         }
 
     }
