@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using StudentAPIBusinessLayer;
-using StudentAPIDataAccessLayer;
 using WService.Model;
+using StudentAPIDataAccessLayer;
 
 namespace WService.Controllers {
 

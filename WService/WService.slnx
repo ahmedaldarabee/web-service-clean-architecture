@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="../SecurityLayerTraning/SecurityLayerTraning.csproj" Id="a53b346a-ac3d-4ebe-821d-9242d5b2e1fc" />
   <Project Path="../StudentAPIBusinessLayer/StudentAPIBusinessLayer.csproj" Id="f53f6d1c-2bc8-4353-bc6f-f11b4eba4b21" />
   <Project Path="../StudentAPIDataAccessLayer/StudentAPIDataAccessLayer.csproj" Id="f3f7d65b-fded-47be-8ef6-fecca1a6f9c8" />
   <Project Path="WService.csproj" />
