@@ -1,11 +1,91 @@
-﻿using System;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
+using Isopoh.Cryptography.Argon2;
 using System.Text;
 
 public static class EncodingSide {    
-    public static void Main() {        
+    public static void Main() {
+        
     }
+    public static void HashingExec() {
+        Console.Write("Hello, Enter needed password for doing hashing: ");
 
+        string password = Console.ReadLine() ?? "";
+        string result = ArgonHashing(password); //Argon Is Recommended Algorithm for doing hashing
+        Console.WriteLine("\nHashed Password: " + result);
+
+        Console.Write("\nEnter your password for login: ");
+        string enteredPassword = Console.ReadLine()??"";
+        string verificationResult = VerifyArgonHashing(enteredPassword, result);
+        Console.WriteLine(verificationResult);
+    }
+    public static string ArgonHashing(string password){
+        try {
+            byte[] salt = new byte[16]; // 16 * 8 = 128 bit
+            RandomNumberGenerator.Fill(salt);
+            string hashedPassword = DoArgonHashing(password, salt);
+            return hashedPassword;
+        }catch(Exception ex){
+            Console.WriteLine(ex.Message);
+            throw;
+        }
+    }
+    public static string DoArgonHashing(string password, byte[] salt){
+        try {
+            var config = new Argon2Config {
+                //HybridAddressing: is the best and most common way for better memory consuming
+                Type = Argon2Type.HybridAddressing,
+
+                //[ Nineteen ] stable argon algorithm version
+                Version = Argon2Version.Nineteen,
+
+                //iteration time of mixing password with exist salt to generate strong hashed result and difficulty suggest it 
+                TimeCost = 4,
+
+                //[ Strong Section ] memory size consuming to create hashed password, where here it will take 128 megabytes
+                MemoryCost = 128 * 1024,
+
+                //Parallelism Part both : [ Lanes and Threads ]
+                //Note: Must have same value 2 - 2 or 1 - 1 [ Recommended way ] for both Lanes and Threads and not difference!
+                //Lanes: as size or lines within the RAM
+                //Threads [ Executer ]: as number of threads that used by using CPU
+                Lanes = 1,
+                Threads = 1,
+                
+                // here main password as bytes and main salt
+                Password = Encoding.UTF8.GetBytes(password),
+                Salt = salt,
+
+                HashLength = 32 // 256-bit hash output
+            };
+            string HashedPassword = Argon2.Hash(config);
+            return HashedPassword;
+        }catch (Exception ex){
+            Console.WriteLine(ex.Message);
+            throw;
+        }
+    }        
+    public static string VerifyArgonHashing(string enteredPassword,string hashedPassword) {
+        try {
+            bool isValid = Argon2.Verify(hashedPassword, enteredPassword);
+            return isValid ? "\nYour login is corrected" : "\nOpps, something went wrong!";
+        }
+        catch (Exception ex){
+            Console.WriteLine(ex.Message);
+            throw;
+        }
+    }
+    public static string ASHAHashing(string data){
+        //the result 256 [ Fixed Sized String as a Signature ] bit even size of data is largest of 256
+        try{
+            using (SHA256 doHashing = SHA256.Create()){
+                byte[] result = doHashing.ComputeHash(Encoding.UTF8.GetBytes(data));
+                return BitConverter.ToString(result).Replace("-","").ToLower();
+            }
+        }catch(Exception ex){
+            Console.WriteLine(ex.Message);
+            throw;
+        }
+    }
     public static void RSAExec(){
         try {
             //The RSA Process: 

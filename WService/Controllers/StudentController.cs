@@ -1,15 +1,16 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using StudentAPIBusinessLayer;
-using WService.Model;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using StudentAPIDataAccessLayer;
 
 namespace WService.Controllers {
 
     //[Route("api/[controller]")] isn't recommended to use dynamic controller !
+    [Authorize]
     [Route("api/StudentAPI")]
     [ApiController]
     public class StudentController : ControllerBase {
 
+        [AllowAnonymous]
         [HttpGet("GetAllStudent")]
         public ActionResult<IEnumerable<StudentDTO>> GetAllStudent() {
             var studentList = StudentAPIBusinessLayer.Student.GetAllStudents();
@@ -39,6 +40,7 @@ namespace WService.Controllers {
             return Ok(result);
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpGet("GetStudentById")]
         public ActionResult<IEnumerable<Model.Student>> GetStudentById(int id) {
             if (id < 1) {
@@ -69,6 +71,7 @@ namespace WService.Controllers {
             }
         }
 
+        [Authorize(Roles ="Admin")]
         [HttpDelete("DeleteStudentById")]
         public IActionResult DeleteStudentById(int Id) {
             try {
