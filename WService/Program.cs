@@ -6,7 +6,6 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using WService.Authorization;
-using WService.DTO.Settings;
 
 //builder - middleware
 var builder = WebApplication.CreateBuilder(args);

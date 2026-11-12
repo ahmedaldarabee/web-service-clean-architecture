@@ -62,13 +62,9 @@ namespace WService.Controllers {
                     refreshToken
                 });
             }
-            catch (ArgumentOutOfRangeException ex) {
-                Console.WriteLine("Error: " + ex.Message);
-                throw;
-            }
             catch (Exception ex) {
-                Console.WriteLine("Error: " +ex.Message);
-                throw;
+                _logger.LogError(ex, "Error occurred while logging");
+                return StatusCode(500, "Internal server error");
             }            
         }
 
@@ -81,16 +77,19 @@ namespace WService.Controllers {
                 var IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "UnKnown";
 
                 if (student == null){
+                    this._logger.LogWarning("student doesn't exist by email {0} with IP Address: {1}", request.Email, IPAddress);
                     return Unauthorized("something went wrong");
                 }
 
                 //if be as null, that mean refresh token is valid
                 if (student?.RefreshTokenRevokedAt != null){
+                    this._logger.LogWarning("Refresh Token Revoked");
                     return Unauthorized("something went wrong");
                 }
 
                 //if be as have date, that mean refresh token isn't expired so that be valid
-                if (student?.RefreshTokenExpiredAt != null || student?.RefreshTokenExpiredAt <= DateTime.UtcNow){
+                if (student?.RefreshTokenExpiredAt == null || student?.RefreshTokenExpiredAt <= DateTime.UtcNow){
+                    this._logger.LogWarning("Refresh Token Expired");
                     return Unauthorized("something went wrong");
                 }
 
@@ -98,14 +97,12 @@ namespace WService.Controllers {
 
                 //Breach alert
                 if (!isValid){
+                    // so we will broken the main hashed refresh token to create new one that be not changed!
+                    // [ Security Enhancement - this section that mean main refresh token that known by someone ]
+                    
                     //that mean some one that change refresh-token, so we will handle this scenario
-                    if (student == null){
-                        student!.RefreshTokenRevokedAt = DateTime.UtcNow;
-                        
-                        // [ Security Enhancement - this section that mean main refresh token that known by someone ]
-                        // so we will broken the main hashed refresh token to create new one that be not changed!
-                        student.HashedRefreshToken = null!;
-                    }
+                    student!.RefreshTokenRevokedAt = DateTime.UtcNow;
+                    student.HashedRefreshToken = null!;
 
                     this._logger.LogWarning("refresh token abuse by email {0} with IP Address: {1}", request.Email, IPAddress);
 
@@ -125,8 +122,8 @@ namespace WService.Controllers {
                 });
             }
             catch (Exception ex){
-                Console.WriteLine(ex.Message);
-                throw;
+                _logger.LogError(ex, "Error occurred while refreshing token");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -151,8 +148,8 @@ namespace WService.Controllers {
                 return Ok("Student Logged out successfully");
 
             } catch (Exception ex){
-                Console.WriteLine(ex.Message);
-                throw;
+                _logger.LogError(ex, "Error occurred while logging out");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -165,29 +162,36 @@ namespace WService.Controllers {
         }
 
         private string GenerationAccessToken(Model.Student student){
-            var JWTPayload = new[] {
+            try
+            {
+                var JWTPayload = new[] {
                     new Claim(ClaimTypes.NameIdentifier , student.Id.ToString()!),
                     new Claim(ClaimTypes.Email , student.Email!),
                     new Claim(ClaimTypes.Role , student.Role!)
             };
 
-            //Note: this key must EXIST in secured location [ settings ], not Hardcoded as exist here , here just for simulation!
-            //This Part Must be more strong and secured!
-    
-            var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(this._configuration["JWTSettings:SecretKey"]!));
-            var JWTHeader = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);
+                //Note: this key must EXIST in secured location [ settings ], not Hardcoded as exist here , here just for simulation!
+                //This Part Must be more strong and secured!
 
-            //Payload be as: issuer + audience + expires + claims
-            var JWTToken = new JwtSecurityToken(
-                issuer: this._configuration["JWTSettings:Issuer"],
-                audience: this._configuration["JWTSettings:Audience"],
-                expires: DateTime.UtcNow.AddMinutes(_configuration.GetValue<int>("JwtSettings:ExpiringAt")),
-                claims: JWTPayload,
-                signingCredentials: JWTHeader
-            );
+                var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(this._configuration["JWTSettings:SecretKey"]!));
+                var JWTHeader = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);
 
-            string AccessToken = new JwtSecurityTokenHandler().WriteToken(JWTToken);
-            return AccessToken;
+                //Payload be as: issuer + audience + expires + claims
+                var JWTToken = new JwtSecurityToken(
+                    issuer: this._configuration["JWTSettings:Issuer"],
+                    audience: this._configuration["JWTSettings:Audience"],
+                    expires: DateTime.UtcNow.AddMinutes(10),//_configuration.GetValue<int>("JwtSettings:ExpiringAt")
+                    claims: JWTPayload,
+                    signingCredentials: JWTHeader
+                );
+
+                string AccessToken = new JwtSecurityTokenHandler().WriteToken(JWTToken);
+                return AccessToken;
+            }
+            catch (Exception ex){
+                _logger.LogError(ex, "Error occurred while token generation");
+                throw;
+            }
         }
     
         private void RotationRefreshToken(Model.Student student,string refreshToken){
