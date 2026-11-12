@@ -1,20 +1,20 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using Microsoft.OpenApi.Models;
-using WService.Authorization;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.RateLimiting;
+using WService.Authorization;
+using WService.DTO.Settings;
 
 //builder - middleware
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddAuthentication();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
 //Add Authorization button to enable show data when i use corrected token
-
 builder.Services.AddSwaggerGen(options => {
     //[ Step 1 ] JWT - Bearer Plan
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme {
@@ -74,6 +74,37 @@ builder.Services.AddAuthorization(options =>{
 //IAuthorizationHandler: implementing guard in our system
 builder.Services.AddSingleton<IAuthorizationHandler, StudentOwnerHandler>();
 
+builder.Services.AddRateLimiter(options => {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("AuthLimiter", httpContext => {
+        var IPAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "UnKnown";
+
+        // [ JUST ] I Want from you to clear next section:
+        //GetFixedWindowLimiter: [ Time Manager about rate limiting - Core Section ]
+
+        //[ Fixed Approach ] Many requests can be made within a very short period around the allowed limit, and this situation is called a (border explosion). so the solution about time management of windowing is Sliding Window
+
+        //GetSlidingWindowLimiter: Same [ GetFixedWindowLimiter ] Idea but completely prevents burst attacks [ Recommended Way ]!
+
+        //The [ Sliding Window ] does not revert all permissions at once, but rather releases the permissions consumed in the segment that exited the time window [ gradually ] for the same request! also
+
+        //The user can submit a new request as soon as one or more permits are returned, and does not need to wait until all previous requests are completed or the counter returns to its original state completely.
+
+        return RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: IPAddress,
+            factory: _ => new SlidingWindowRateLimiterOptions {
+                // attempt time to use endpoint
+                PermitLimit = 3,
+                // If rate limit happen, the service it will waiting 1m then it will enable to use endpoint again
+                //so in 1m, the user can do request 3 time just!
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 2,//implementing sliding window idea to the 1m / 2
+                //If server have too far request, don't let his requests go through the queue of expectations, but reject them immediately, same [ ClockSkew= TimeSpan.Zero ] Idea
+                QueueLimit = 0
+            }
+        );
+    });
+});
 
 var app = builder.Build();
 
@@ -87,9 +118,27 @@ if (app.Environment.IsDevelopment()) {
 app.UseHttpsRedirection();
 app.UseCors("StudentCORSPolicy");
 
-//middleware that handle JWT processes and validations
-app.UseAuthentication();
-app.UseAuthorization();
+app.UseRateLimiter();
+
+//Use that be Handle Every Request , and based on this signal [  StatusCodes.Status429TooManyRequests ] we handle endpoints that implementing rate limiting , so you can any signal to refer target endpoint
+
+app.Use(async (context,next) => {
+    await next(); // [ Step 1 ] that mean we enable request to be execute needed endpoints
+    
+    //[ Step 2 ] we will do check if rate limiting happen, if true show needed message just
+    //context be as: HttpContext [ Main Http Request to the server ]
+    if (context.Response.StatusCode == StatusCodes.Status429TooManyRequests){
+        await context.Response.WriteAsync("something went wrong.");
+    }
+
+    if (context.Response.StatusCode == StatusCodes.Status403Forbidden){
+
+        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        var IPAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var path = context.Request.Path.ToString();
+        app.Logger.LogWarning("Forbidden access. UserId={UserId}, Path={Path}, IP={IP}",userId,path,IPAddress);
+    }
+});
 
 app.MapControllers();
 app.Run();

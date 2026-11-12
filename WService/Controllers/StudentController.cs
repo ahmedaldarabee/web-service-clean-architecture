@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StudentAPIDataAccessLayer;
+using System.Net;
 
 namespace WService.Controllers {
 
@@ -9,6 +10,12 @@ namespace WService.Controllers {
     [Route("api/StudentAPI")]
     [ApiController]
     public class StudentController : ControllerBase {
+
+        private readonly ILogger<StudentController> _logger;
+
+        public StudentController(ILogger<StudentController> logger) {
+            this._logger = logger;
+        }
 
         [AllowAnonymous]
         [HttpGet("GetAllStudent")]
@@ -43,6 +50,11 @@ namespace WService.Controllers {
         [Authorize(Roles = "Admin")]
         [HttpGet("GetStudentById")]
         public ActionResult<IEnumerable<Model.Student>> GetStudentById(int id) {
+            
+            //Implementing Auditing Idea, also you can doing this approach into any part related to admin
+            var adminId = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "UnKnown";
+            this._logger.LogWarning("Admin try do logging by this id {0} with IP Address: {1}", id, adminId);
+
             if (id < 1) {
                 return BadRequest("enter corrected id");
             }
